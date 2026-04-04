@@ -1,11 +1,13 @@
-
+---
 title: Crisis Environment
 emoji: 🚑
 colorFrom: blue
 colorTo: red
 sdk: docker
+sdk_version: "latest"
 app_file: app.py
 pinned: false
+---
 
 # Crisis Intelligence Environment
 
