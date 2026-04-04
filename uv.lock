@@ -1,0 +1,28 @@
+version = 1
+metadata-version = 1
+content-hash = "abc123"
+markers = "python_version >= '3.10'"
+
+[[distribution]]
+name = "fastapi"
+version = "0.104.1"
+
+[[distribution]]
+name = "uvicorn"
+version = "0.24.0"
+
+[[distribution]]
+name = "pydantic"
+version = "2.4.2"
+
+[[distribution]]
+name = "requests"
+version = "2.31.0"
+
+[[distribution]]
+name = "jsonschema"
+version = "4.26.0"
+
+[[distribution]]
+name = "openenv-core"
+version = "0.2.0"

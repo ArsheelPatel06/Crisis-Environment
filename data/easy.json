@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "cie-easy-001",
+  "input": {
+    "resource_units_total": 50,
+    "incidents": [
+      {
+        "incident_id": "INC-001",
+        "severity": 5,
+        "people_affected": "800"
+      },
+      {
+        "incident_id": "INC-002",
+        "severity": 3,
+        "people_affected": 120
+      },
+      {
+        "incident_id": "INC-003",
+        "severity": "2",
+        "people_affected": 40
+      }
+    ]
+  },
+  "ground_truth": {
+    "cleaned_data": {
+      "INC-001": {
+        "incident_id": "INC-001",
+        "severity": 5,
+        "people_affected": 800
+      },
+      "INC-002": {
+        "incident_id": "INC-002",
+        "severity": 3,
+        "people_affected": 120
+      },
+      "INC-003": {
+        "incident_id": "INC-003",
+        "severity": 2,
+        "people_affected": 40
+      }
+    },
+    "priorities": {
+      "INC-001": "high",
+      "INC-002": "medium",
+      "INC-003": "low"
+    },
+    "allocation": {
+      "INC-001": 25,
+      "INC-002": 15,
+      "INC-003": 10
+    }
+  }
+}

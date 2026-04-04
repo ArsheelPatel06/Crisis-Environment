@@ -1,0 +1,234 @@
+# OpenEnv Configuration for Crisis Intelligence Environment
+# Specification: https://github.com/meta-pytorch/OpenEnv
+
+spec_version: 1
+
+# Environment Identity
+name: crisis-intelligence-env
+version: 1.0.0
+
+# Description and Metadata
+description: >
+  Crisis Intelligence Environment simulates disaster response decision-making
+  with corrupted, unreliable sensor data. Agents must clean data, prioritize
+  disasters, and optimally allocate limited resources to maximize lives saved
+  and efficiency.
+
+tags:
+  - openenv
+  - rl-environment
+  - disaster-response
+  - resource-allocation
+  - decision-making
+
+# Deployment Configuration
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
+
+# Environment Capabilities
+environment:
+  # Concurrent session support
+  concurrent_sessions: true
+  max_concurrent: 4
+
+  # Episode configuration
+  episode_max_steps: 8
+  episode_max_duration: 300  # seconds
+
+  # State management
+  stateless: false
+  state_persistence: memory
+
+# API Endpoints
+endpoints:
+  - path: /reset
+    method: POST
+    description: Initialize environment for new episode
+
+  - path: /step
+    method: POST
+    description: Execute action and receive reward
+
+  - path: /state
+    method: GET
+    description: Get current environment state
+
+  - path: /health
+    method: GET
+    description: Health check endpoint
+
+  - path: /docs
+    method: GET
+    description: API documentation (Swagger)
+
+# Agent Action Schema
+action:
+  type: object
+  description: Resource allocation decisions
+  required:
+    - allocations
+  properties:
+    allocations:
+      type: array
+      description: List of resource allocations
+      items:
+        type: object
+        required:
+          - location
+          - budget_allocated
+          - personnel_deployed
+          - vehicles_deployed
+        properties:
+          location:
+            type: string
+            description: Target disaster location
+          budget_allocated:
+            type: integer
+            minimum: 0
+            description: USD amount allocated
+          personnel_deployed:
+            type: integer
+            minimum: 0
+            description: Number of personnel
+          vehicles_deployed:
+            type: integer
+            minimum: 0
+            description: Emergency vehicles deployed
+    strategy_notes:
+      type: string
+      description: Optional allocation strategy explanation
+
+# Environment Observation Schema
+observation:
+  type: object
+  description: Current environment state
+  properties:
+    raw_data:
+      type: array
+      description: Raw corrupted disaster data
+      items:
+        type: object
+        properties:
+          location:
+            type: string
+          disaster_type:
+            type: string
+            enum: ["earthquake", "flood", "fire", "hurricane"]
+          severity:
+            type: string
+            description: May contain corruptions
+          affected_population:
+            type: string
+            description: May contain missing/garbled values
+          urgency_hours:
+            type: integer
+    cleaned_data:
+      type: array
+      description: Cleaned and prioritized disaster data
+      items:
+        type: object
+        properties:
+          location:
+            type: string
+          disaster_type:
+            type: string
+          severity:
+            type: number
+            minimum: 0
+            maximum: 1
+          affected_population:
+            type: integer
+          priority_score:
+            type: number
+            minimum: 0
+            maximum: 1
+    allocated_resources:
+      type: object
+      description: Current resource allocations by location
+    step_count:
+      type: integer
+    total_budget_remaining:
+      type: integer
+    episode_info:
+      type: object
+      properties:
+        lives_saved:
+          type: integer
+        efficiency:
+          type: number
+
+# Reward Schema
+reward:
+  type: number
+  minimum: -1.0
+  maximum: 1.0
+  description: >
+    Reward signal based on allocation quality.
+    High values indicate optimal resource allocation matching priorities.
+
+# Deployment Targets
+deployment:
+  targets:
+    - huggingface_spaces
+    - docker
+    - local
+
+  # HuggingFace Spaces Configuration
+  huggingface:
+    base_path: /web
+
+  # Docker Configuration
+  docker:
+    base_image: python:3.11-slim
+    build_file: server/Dockerfile
+
+  # Health Check
+  health_check:
+    endpoint: /health
+    interval: 30
+    timeout: 10
+    retries: 3
+
+# Development Configuration
+development:
+  readme: README.md
+
+  # Local testing
+  test_command: "python -m pytest tests/"
+
+  # Development dependencies
+  dev_dependencies:
+    - pytest>=8.0.0
+    - pytest-cov>=4.0.0
+    - black>=23.0.0
+    - ruff>=0.1.0
+
+# Performance Characteristics
+performance:
+  startup_time_sec: 2
+  step_latency_ms: 500
+  memory_usage_mb: 150
+  throughput_steps_per_second: 2
+
+# Metadata
+metadata:
+  author: Crisis Intelligence Team
+  license: BSD-3-Clause
+  repository: https://github.com/your-org/crisis-intelligence-env
+  documentation: https://docs.example.com
+
+  # Research/Citation
+  research:
+    paper: null
+    venue: null
+
+  # Keywords for discovery
+  keywords:
+    - resource allocation
+    - disaster response
+    - multi-agent coordination
+    - decision-making under uncertainty
+    - data cleaning
+    - priority assignment

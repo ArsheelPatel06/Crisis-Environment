@@ -1,0 +1,29 @@
+[project]
+name = "crisis-intelligence-env"
+version = "0.1.0"
+description = "AI benchmark for crisis resource allocation under adversarial conditions"
+authors = [
+    { name = "Arsheel Patel" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic",
+    "requests",
+    "jsonschema",
+    "openenv-core>=0.2.0"
+]
+
+[tool.setuptools]
+packages = ["env", "server", "agents", "tests"]
+
+[project.scripts]
+server = "server.app:main"
+
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

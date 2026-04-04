@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "cie-hard-001-enhanced",
+  "input": {
+    "resource_units_total": 40,
+    "incidents": [
+      {
+        "incident_id": "H-01",
+        "severity": "CRITICAL",
+        "people_affected": 12,
+        "analyst_note": "localized flash flood"
+      },
+      {
+        "incident_id": "H-02",
+        "severity": "minimal",
+        "people_affected": "3200+",
+        "conflicting_severity_numeric": 1
+      },
+      {
+        "incident_id": null,
+        "severity": "IV",
+        "people_affected": "88",
+        "row_index": 3
+      },
+      {
+        "incident_id": "H-04",
+        "severity": 3,
+        "people_affected": "90",
+        "duplicate_priority_flag": true
+      },
+      {
+        "incident_id": "H-05",
+        "severity": 1,
+        "people_affected": "25",
+        "stale_reading": true
+      },
+      {
+        "incident_id": "H-06",
+        "severity": "",
+        "people_affected": "10000",
+        "notes": "missing severity but HUGE population - noise case with signal"
+      },
+      {
+        "incident_id": "H-07",
+        "severity": "EXTREME",
+        "people_affected": 0,
+        "notes": "edge case - extreme text but zero population"
+      },
+      {
+        "incident_id": "H-08",
+        "severity": "moderate",
+        "people_affected": "500,000",
+        "notes": "moderate severity but record-breaking population - massive scale"
+      }
+    ]
+  },
+  "ground_truth": {
+    "cleaned_data": {
+      "H-01": {
+        "incident_id": "H-01",
+        "severity": 5,
+        "people_affected": 12
+      },
+      "H-02": {
+        "incident_id": "H-02",
+        "severity": 1,
+        "people_affected": 3200
+      },
+      "H-03": {
+        "incident_id": "H-03",
+        "severity": 4,
+        "people_affected": 88
+      },
+      "H-04": {
+        "incident_id": "H-04",
+        "severity": 3,
+        "people_affected": 90
+      },
+      "H-05": {
+        "incident_id": "H-05",
+        "severity": 1,
+        "people_affected": 25
+      },
+      "H-06": {
+        "incident_id": "H-06",
+        "severity": 3,
+        "people_affected": 10000
+      },
+      "H-07": {
+        "incident_id": "H-07",
+        "severity": 4,
+        "people_affected": 0
+      },
+      "H-08": {
+        "incident_id": "H-08",
+        "severity": 3,
+        "people_affected": 500000
+      }
+    },
+    "priorities": {
+      "H-01": "high",
+      "H-02": "high",
+      "H-03": "high",
+      "H-04": "medium",
+      "H-05": "low",
+      "H-06": "high",
+      "H-07": "medium",
+      "H-08": "high"
+    },
+    "allocation": {
+      "H-01": 3,
+      "H-02": 3,
+      "H-03": 3,
+      "H-04": 3,
+      "H-05": 2,
+      "H-06": 11,
+      "H-07": 4,
+      "H-08": 11
+    }
+  }
+}

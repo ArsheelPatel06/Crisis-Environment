@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "cie-medium-001-enhanced",
+  "input": {
+    "resource_units_total": "100",
+    "incidents": [
+      {
+        "incident_id": "Z-01",
+        "severity": "HIGH",
+        "people_affected": "1,100"
+      },
+      {
+        "incident_id": 1002,
+        "severity": "III",
+        "people_affected": 210.4,
+        "notes": "field estimate"
+      },
+      {
+        "incident_id": "z-03",
+        "severity": 4.0,
+        "people_affected": null,
+        "casualties_est": "95"
+      },
+      {
+        "incident_id": "Z-04",
+        "severity": "**2**",
+        "people_affected": "sixty"
+      },
+      {
+        "incident_id": "Z-05",
+        "severity": "MINIMAL",
+        "people_affected": "5,200",
+        "notes": "text says minimal but HUGE population - conflicting signal"
+      },
+      {
+        "incident_id": "Z-06",
+        "severity": "5",
+        "people_affected": 3,
+        "notes": "severity text looks extreme but only 3 people"
+      }
+    ]
+  },
+  "ground_truth": {
+    "cleaned_data": {
+      "Z-01": {
+        "incident_id": "Z-01",
+        "severity": 5,
+        "people_affected": 1100
+      },
+      "Z-02": {
+        "incident_id": "Z-02",
+        "severity": 3,
+        "people_affected": 211
+      },
+      "Z-03": {
+        "incident_id": "Z-03",
+        "severity": 4,
+        "people_affected": 95
+      },
+      "Z-04": {
+        "incident_id": "Z-04",
+        "severity": 2,
+        "people_affected": 60
+      },
+      "Z-05": {
+        "incident_id": "Z-05",
+        "severity": 1,
+        "people_affected": 5200
+      },
+      "Z-06": {
+        "incident_id": "Z-06",
+        "severity": 5,
+        "people_affected": 3
+      }
+    },
+    "priorities": {
+      "Z-01": "high",
+      "Z-02": "medium",
+      "Z-03": "medium",
+      "Z-04": "low",
+      "Z-05": "high",
+      "Z-06": "medium"
+    },
+    "allocation": {
+      "Z-01": 24,
+      "Z-02": 17,
+      "Z-03": 14,
+      "Z-04": 8,
+      "Z-05": 25,
+      "Z-06": 12
+    }
+  }
+}
