@@ -9,6 +9,9 @@ Real-world disaster response systems receive data from dozens of sources simulta
 CIE trains and evaluates agents on the full pipeline: data forensics → triage → resource allocation. This directly models how AI systems must operate in high-stakes, data-imperfect environments.
 
 ---
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-API-green)
+![Status](https://img.shields.io/badge/status-live-brightgreen)
 
 ## Live Environment
 https://arsheelpatel06-crisis-environment.hf.space
@@ -17,8 +20,26 @@ Health check:
 ```bash
 curl https://arsheelpatel06-crisis-environment.hf.space/health
 ```
+## UI Usage
+
+Access the live interface:
+https://arsheelpatel06-crisis-environment.hf.space/ui
+
+Steps:
+1. Click "Check Health"
+2. Select difficulty and start a scenario
+3. View incidents
+4. Assign priorities and allocate resources
+5. Run step to receive reward and feedback
 
 ---
+## Quick Start
+
+```bash
+git clone https://github.com/ArsheelPatel06/Crisis-Environment.git
+cd Crisis-Environment
+pip install -r requirements.txt
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 
 ## Episode Protocol (3-Step)
 
@@ -222,6 +243,13 @@ openenv validate  # passes
 
 ---
 
-## License
+## Why This Is Challenging
 
-MIT
+- Multi-step decision making (not single action RL)
+- Noisy and inconsistent inputs
+- Conflicting signals across features
+- Hard resource constraints
+- Partial credit scoring instead of binary rewards
+
+## License
+MIT License
