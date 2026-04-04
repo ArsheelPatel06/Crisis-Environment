@@ -1,196 +1,227 @@
-# 🚨 Crisis Intelligence Environment
+# Crisis Intelligence Environment (CIE)
 
-A production-ready multi-agent simulation environment for disaster response and resource allocation.
+A multi-step OpenEnv reinforcement learning environment where AI agents must operate on unreliable disaster data — cleaning corrupted inputs, assigning priorities, and allocating limited emergency resources under constrained conditions.
 
----
+## Why This Environment Exists
 
-## 🌐 Live Demo
+Real-world disaster response systems receive data from dozens of sources simultaneously — field reports, sensors, human inputs. This data is routinely incomplete, inconsistent, delayed, or incorrect. Existing RL benchmarks assume clean inputs. CIE does not.
 
-🔗 https://arsheelpatel06-crisis-environment.hf.space  
-
-### UI Access:
-👉 https://arsheelpatel06-crisis-environment.hf.space/ui
+CIE trains and evaluates agents on the full pipeline: data forensics → triage → resource allocation. This directly models how AI systems must operate in high-stakes, data-imperfect environments.
 
 ---
 
-## 🧠 Problem Statement
+## Live Environment
+https://arsheelpatel06-crisis-environment.hf.space
 
-Simulate real-world crisis scenarios where multiple incidents occur and limited resources must be allocated efficiently.
-
-The system evaluates:
-- Data cleaning  
-- Priority assignment  
-- Resource allocation  
-
----
-
-## ⚙️ Features
-
-- 🧪 Multi-difficulty scenarios (easy, medium, hard)  
-- 🤖 Multiple agent strategies:
-  - Greedy Agent  
-  - Heuristic Agent  
-  - Random Agent  
-- 📊 Evaluation with reward scoring  
-- 🔌 REST API for integration  
-- 🌐 Interactive UI using Gradio  
-- 🐳 Dockerized deployment  
-
----
-
-## 📁 Project Structure
-
+Health check:
 ```bash
-Crisis_Environment/
-│
-├── agents/              # Agent strategies
-├── data/                # Scenario datasets
-├── env/                 # Core environment logic
-├── server/              # FastAPI backend
-├── tests/               # API & integration tests
-│
-├── app.py               # Entry point
-├── inference.py         # Agent execution logic
-├── openenv.yaml         # OpenEnv configuration
-├── Dockerfile           # Deployment configuration
-├── requirements.txt     # Dependencies
-├── README.md
+curl https://arsheelpatel06-crisis-environment.hf.space/health
 ```
 
 ---
 
-## 🚀 Running Locally
+## Episode Protocol (3-Step)
 
-### 1. Clone repository
+Each episode runs exactly 3 steps. The agent receives corrupted incident data and must work through three phases sequentially:
+POST /reset?difficulty=easy|medium|hard   → raw corrupted observation
+POST /step  {"cleaned_data": {...}}        → Phase 1 reward (max 0.5)
+POST /step  {"priorities": {...}}          → Phase 2 reward (max 0.2)
+POST /step  {"allocation": {...}}          → Phase 3 reward (max 0.3), done=True
+Total max reward = 1.0
 
+---
+
+## Action Space
+
+**Phase 1 — Data Cleaning:**
+```json
+{
+  "cleaned_data": {
+    "INC-001": {"incident_id": "INC-001", "severity": 5, "people_affected": 800},
+    "INC-002": {"incident_id": "INC-002", "severity": 3, "people_affected": 120}
+  }
+}
+```
+
+**Phase 2 — Priority Assignment:**
+```json
+{
+  "priorities": {
+    "INC-001": "high",
+    "INC-002": "medium",
+    "INC-003": "low"
+  }
+}
+```
+
+**Phase 3 — Resource Allocation:**
+```json
+{
+  "allocation": {
+    "INC-001": 25,
+    "INC-002": 15,
+    "INC-003": 10
+  }
+}
+```
+
+---
+
+## Observation Space
+```json
+{
+  "episode_id": "string",
+  "difficulty": "easy|medium|hard",
+  "phase": 1,
+  "input": {
+    "resource_units_total": 50,
+    "incidents": [
+      {
+        "incident_id": "INC-001",
+        "severity": "CRITICAL",
+        "people_affected": "800"
+      }
+    ]
+  },
+  "step_count": 0,
+  "max_steps": 3,
+  "cumulative_reward": 0.0
+}
+```
+
+Incident data contains deliberate corruptions:
+- Severity as string ("HIGH", "III", "CRITICAL"), roman numeral, numeric, or missing
+- People affected as string ("1,100"), word ("sixty"), null, or with formatting
+- Conflicting signals (low severity, massive population)
+- Missing or null incident IDs
+
+---
+
+## Reward Function
+Final Score = Cleaning(0.5) + Priority(0.2) + Allocation(0.3)
+
+**Cleaning (0–0.5):** Proportional to correct field parsing across all incidents. Penalizes wrong types, missing incidents, incorrect values.
+
+**Priority (0–0.2):** Exact match of urgency labels against ground truth. Each correct label contributes proportionally.
+
+**Allocation (0–0.3):** Measures deviation from optimal resource distribution. Perfect match = 0.3. Partial credit for near-optimal allocations.
+
+Rewards are non-sparse — every phase produces a signal regardless of overall episode outcome.
+
+---
+
+## Tasks
+
+### Easy
+- 3 incidents
+- Single corruption type per field
+- Clear severity signals
+- Straightforward priority ordering
+- Simple budget allocation
+
+### Medium
+- 6 incidents
+- Multiple corruption types simultaneously
+- Conflicting signals (e.g., low severity label but high population)
+- Moderate resource constraints requiring trade-offs
+
+### Hard
+- 8 incidents
+- Ambiguous and misleading data (roman numerals, missing IDs, empty severity)
+- Edge cases: extreme severity with zero population, massive population with missing severity
+- Strict resource constraints across many competing incidents
+
+---
+
+## Baseline Scores
+
+| Agent | Easy | Medium | Hard | Avg |
+|-------|------|--------|------|-----|
+| Random | ~0.30 | ~0.25 | ~0.28 | ~0.28 |
+| Greedy | 0.71 | 0.44 | 0.50 | 0.55 |
+| Heuristic | 0.78 | 0.72 | 0.79 | 0.76 |
+
+Random baseline shows meaningful variance confirming graders are not static. Heuristic outperforms greedy across all difficulties confirming difficulty progression is real.
+
+---
+
+## Project Structure
+crisis-intelligence-env/
+├── env/
+│   ├── env.py          # CrisisEnv: reset(), step(), state()
+│   ├── grader.py       # Deterministic scoring engine
+│   └── tasks.py        # Task loader
+├── server/
+│   └── app.py          # FastAPI server
+├── agents/
+│   ├── heuristic_agent.py
+│   ├── greedy_agent.py
+│   └── random_agent.py
+├── data/
+│   ├── easy.json
+│   ├── medium.json
+│   └── hard.json
+├── tests/
+│   ├── test_api.py
+│   └── test_integration.py
+├── client.py           # Python client
+├── inference.py        # Baseline inference script
+├── openenv.yaml        # OpenEnv spec
+├── Dockerfile
+└── requirements.txt
+
+---
+
+## Setup and Usage
 ```bash
 git clone https://github.com/ArsheelPatel06/Crisis-Environment.git
-cd Crisis_Environment
-```
-
-### 2. Create virtual environment
-
-```bash
-python -m venv venv
-```
-
-Activate it:
-
-```bash
-# Mac/Linux
-source venv/bin/activate  
-
-# Windows
-venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
+cd Crisis-Environment
+python3.12 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+uvicorn server.app:app --host 0.0.0.0 --port 7860
 ```
 
-### 4. Run the server
-
+Run baseline agents:
 ```bash
-uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
+python3 inference.py --agent heuristic
+python3 inference.py --agent random
+python3 inference.py --agent greedy
 ```
 
-### 5. Access locally
-
-- API: http://localhost:7860  
-- UI: http://localhost:7860/ui  
-
----
-
-## 📡 API Endpoints
-
-| Endpoint        | Method | Description              |
-|----------------|--------|--------------------------|
-| `/`            | GET    | Root info                |
-| `/health`      | GET    | Health check             |
-| `/reset`       | POST   | Start new scenario       |
-| `/input`       | GET    | Get current input        |
-| `/ground_truth`| GET    | Get correct answer       |
-| `/step`        | POST   | Submit prediction        |
-| `/state`       | GET    | Environment state        |
-
----
-
-## 🧪 Example Usage
-
-### Health check
-
+Docker:
 ```bash
-curl http://localhost:7860/health
+docker build -t crisis-intelligence-env .
+docker run -p 7860:7860 crisis-intelligence-env
 ```
 
-### Reset environment
+---
 
+## API Reference
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/reset` | POST | Start new episode |
+| `/step` | POST | Submit phase action |
+| `/state` | GET | Current episode state |
+| `/docs` | GET | Swagger UI |
+
+---
+
+## OpenEnv Compliance
 ```bash
-curl -X POST "http://localhost:7860/reset?difficulty=easy"
+openenv validate  # passes
 ```
 
----
-
-## 🖥️ UI Features
-
-- Check API health  
-- Reset environment with predefined scenarios  
-- View structured JSON responses  
-- Interact with backend without writing code  
+- Typed Pydantic models via FastAPI
+- step() / reset() / state() endpoints
+- openenv.yaml with full metadata
+- Dockerized deployment
+- Deterministic graders with scores in [0.0, 1.0]
 
 ---
 
-## 🤗 Hugging Face Deployment
+## License
 
-This project is deployed using Docker Spaces on Hugging Face.
-
-### Key Details:
-
-- Docker-based deployment  
-- FastAPI server running on port 7860  
-- Gradio UI mounted at `/ui`  
-
-### Steps followed:
-
-1. Created Hugging Face Space (Docker)  
-2. Added project files  
-3. Configured Dockerfile  
-4. Exposed FastAPI app  
-5. Mounted Gradio UI  
-
----
-
-## 👥 Contributors
-
-- Arsheel Patel  
-- Sufyan Khan  
-- Saif Salmani  
-
----
-
-## 🧠 Notes
-
-- API is stateful (one active episode at a time)  
-- Designed for extensibility (add new agents easily)  
-- Backend and UI communicate via REST APIs  
-- Suitable for simulation, evaluation, and experimentation  
-
----
-
-## 🏁 Submission
-
-This repository is part of a hackathon submission demonstrating:
-
-- Backend system design (FastAPI)  
-- API engineering  
-- Docker-based deployment  
-- Full-stack integration (API + UI)  
-- Real-time simulation environment  
-
----
-
-## 📜 License
-
-MIT License
+MIT
