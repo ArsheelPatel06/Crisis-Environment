@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, HTTPException, Query
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 import requests
 import gradio as gr
@@ -130,26 +130,323 @@ async def get_state():
 
 
 # -------------------- GRADIO UI --------------------
-import requests
+import os
+BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
 
-BASE_URL = "https://arsheelpatel06-crisis-environment.hf.space"
+def ensure_state_initialized(state_dict):
+    """Initialize state with default values if needed."""
+    if state_dict is None:
+        state_dict = {}
+    defaults = {
+        "incidents": [],
+        "episode_id": None,
+        "resource_units_total": 0,
+        "priorities": {},
+        "allocation": {},
+    }
+    for key, value in defaults.items():
+        if key not in state_dict:
+            state_dict[key] = value
+    return state_dict
+
+def check_health():
+    """Check system health status."""
+    try:
+        res = requests.get(f"{BASE_URL}/health")
+        data = res.json()
+        status = "✅ Healthy" if res.status_code == 200 else "❌ Unhealthy"
+        return status, data.get("episode_id", "None")
+    except Exception as e:
+        return f"❌ Error: {str(e)}", "N/A"
+
+def reset_task(difficulty):
+    """Reset the environment with selected difficulty."""
+    try:
+        res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}")
+        data = res.json()
+
+        if not data.get("success", False):
+            return "Error resetting task", None, None, None
+
+        observation = data.get("observation", {})
+        input_data = observation.get("input", {})
+        incidents = input_data.get("incidents", [])
+        episode_id = observation.get("episode_id", "Unknown")
+        resource_total = input_data.get("resource_units_total", 0)
+
+        # Return incidents as table data
+        table_data = []
+        for inc in incidents:
+            table_data.append([
+                inc.get("incident_id", "N/A"),
+                str(inc.get("severity", "N/A")),
+                str(inc.get("people_affected", 0)),
+                inc.get("description", "No description")[:50],
+            ])
+
+        state = {
+            "incidents": incidents,
+            "episode_id": episode_id,
+            "resource_units_total": resource_total,
+            "priorities": {},
+            "allocation": {},
+        }
+
+        return f"✅ Reset to {difficulty} difficulty", episode_id, resource_total, table_data
+    except Exception as e:
+        return f"❌ Error: {str(e)}", None, None, None
+
+def update_priority(state_dict, incident_id, priority):
+    """Update priority for an incident."""
+    state_dict = ensure_state_initialized(state_dict)
+    state_dict["priorities"][incident_id] = priority
+    return state_dict
+
+def update_allocation(state_dict, incident_id, resources):
+    """Update resource allocation for an incident."""
+    state_dict = ensure_state_initialized(state_dict)
+    try:
+        state_dict["allocation"][incident_id] = int(resources) if resources else 0
+    except:
+        state_dict["allocation"][incident_id] = 0
+    return state_dict
+
+def run_allocation(state_dict):
+    """Execute the allocation step."""
+    state_dict = ensure_state_initialized(state_dict)
+
+    try:
+        # Build the prediction payload
+        prediction = {
+            "cleaned_data": {},  # Users would clean this; here we use incidents as-is
+            "priorities": state_dict.get("priorities", {}),
+            "allocation": state_dict.get("allocation", {}),
+        }
+
+        # Add cleaned data from incidents
+        for inc in state_dict.get("incidents", []):
+            inc_id = inc.get("incident_id")
+            if inc_id:
+                prediction["cleaned_data"][inc_id] = {
+                    "severity": inc.get("severity"),
+                    "people_affected": inc.get("people_affected"),
+                }
+
+        res = requests.post(f"{BASE_URL}/step", json=prediction)
+        data = res.json()
+
+        if not data.get("success", False):
+            return "Error running allocation", None, None, None, None
+
+        info = data.get("info", {})
+        scores = info.get("scores", {})
+        explanations = info.get("explanation", {})
+
+        reward = scores.get("final", 0)
+
+        # Build results display
+        results_text = f"""
+### 🏆 Allocation Results
+
+**Final Score: {reward:.4f} / 1.0**
+
+#### Score Breakdown:
+- **Cleaning:** {scores.get('cleaning', 0):.4f} / 0.5000
+- **Priority:** {scores.get('priority', 0):.4f} / 0.2000
+- **Allocation:** {scores.get('allocation', 0):.4f} / 0.3000
+
+#### Feedback:
+- {explanations.get('cleaning_feedback', 'N/A')}
+- {explanations.get('priority_feedback', 'N/A')}
+- {explanations.get('allocation_feedback', 'N/A')}
+"""
+
+        return results_text, reward, scores, explanations, data.get("observation")
+    except Exception as e:
+        return f"❌ Error: {str(e)}", None, None, None, None
 
 def gradio_ui():
-    with gr.Blocks() as demo:
+    """Build the professional Gradio UI."""
+    state = gr.State(value={})
+
+    with gr.Blocks(title="Crisis Intelligence System", theme=gr.themes.Soft()) as demo:
+        # Title
         gr.Markdown("# 🚨 Crisis Intelligence System")
+        gr.Markdown("Professional resource allocation dashboard for disaster response")
 
-        output = gr.JSON()
+        # ==================== SECTION 1: System Status ====================
+        with gr.Group(label="📊 System Status"):
+            with gr.Row():
+                health_btn = gr.Button("Check System Health", scale=1, variant="primary")
+                health_status = gr.Label(value="Unknown", label="Status")
+                episode_display = gr.Label(value="No Episode", label="Episode ID")
 
-        def check_health():
-            res = requests.get(f"{BASE_URL}/health")
-            return res.json()
+            health_btn.click(
+                check_health,
+                outputs=[health_status, episode_display],
+            )
 
-        def reset_easy():
-            res = requests.post(f"{BASE_URL}/reset?difficulty=easy")
-            return res.json()
+        # ==================== SECTION 2: Task Initialization ====================
+        with gr.Group(label="🎯 Task Initialization"):
+            with gr.Row():
+                difficulty_dropdown = gr.Dropdown(
+                    choices=["easy", "medium", "hard"],
+                    value="easy",
+                    label="Difficulty",
+                    scale=1
+                )
+                reset_btn = gr.Button("Start New Scenario", scale=1, variant="primary")
 
-        gr.Button("Check Health").click(check_health, outputs=output)
-        gr.Button("Reset Easy Task").click(reset_easy, outputs=output)
+            reset_status = gr.Label(value="Ready", label="Status")
+
+            with gr.Row():
+                episode_id_display = gr.Textbox(label="Episode ID", interactive=False)
+                resource_total_display = gr.Number(label="Total Resources", interactive=False)
+
+        # ==================== SECTION 3: Incident Viewer ====================
+        with gr.Group(label="📋 Incident Viewer"):
+            incident_table = gr.Dataframe(
+                headers=["Incident ID", "Severity", "People Affected", "Description"],
+                label="Active Incidents",
+                interactive=False,
+                wrap=True,
+            )
+
+        # ==================== SECTION 4: Resource Allocation Panel ====================
+        allocation_group = gr.Group(label="💼 Resource Allocation Panel", visible=False)
+        with allocation_group:
+            gr.Markdown("Configure priorities and resource allocation for each incident")
+
+            allocation_container = gr.Column()
+
+            # We'll dynamically populate this with incident controls
+            with allocation_container:
+                gr.Textbox(
+                    value="Load a scenario to see incidents",
+                    label="Status",
+                    interactive=False
+                )
+
+        # ==================== SECTION 5: Run Allocation ====================
+        with gr.Group(label="▶️ Execute Allocation"):
+            run_btn = gr.Button("Run Allocation", scale=1, variant="primary", size="lg")
+
+        # ==================== SECTION 6: Results Display ====================
+        with gr.Group(label="🎖️ Results & Scores"):
+            results_markdown = gr.Markdown("Results will appear here after running allocation")
+
+            with gr.Row():
+                final_score_display = gr.Number(label="Final Score", interactive=False, value=0)
+
+            with gr.Accordion(label="Score Breakdown", open=False):
+                scores_json = gr.JSON(label="Detailed Scores")
+
+            with gr.Accordion(label="Feedback", open=False):
+                explanations_json = gr.JSON(label="Feedback Details")
+
+        # ==================== EVENT HANDLERS ====================
+
+        def on_reset_with_state(difficulty):
+            """Reset scenario and populate allocation UI."""
+            status, ep_id, res_total, table_data = reset_task(difficulty)
+
+            # Extract incidents from state
+            new_state = ensure_state_initialized({})
+            status_text, _, _, table_data = reset_task(difficulty)
+
+            # Re-fetch to populate state with incidents
+            try:
+                res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}")
+                data = res.json()
+                if data.get("success"):
+                    observation = data.get("observation", {})
+                    input_data = observation.get("input", {})
+                    incidents = input_data.get("incidents", [])
+                    new_state["incidents"] = incidents
+                    new_state["episode_id"] = observation.get("episode_id")
+                    new_state["resource_units_total"] = input_data.get("resource_units_total", 0)
+            except:
+                pass
+
+            return (
+                status,
+                ep_id,
+                res_total,
+                table_data or [],
+                new_state,
+                gr.update(visible=len(table_data) > 0) if table_data else gr.update(visible=False)
+            )
+
+        reset_btn.click(
+            on_reset_with_state,
+            inputs=[difficulty_dropdown],
+            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state, allocation_group],
+        )
+
+        def build_allocation_ui(state_dict):
+            """Rebuild allocation UI when state changes."""
+            state_dict = ensure_state_initialized(state_dict)
+            incidents = state_dict.get("incidents", [])
+
+            if not incidents:
+                return None
+
+            # Create dynamic components for each incident
+            ui_outputs = []
+
+            for inc in incidents:
+                inc_id = inc.get("incident_id", "Unknown")
+                severity = inc.get("severity", "N/A")
+                affected = inc.get("people_affected", 0)
+
+                ui_outputs.append(
+                    f"**{inc_id}** | Severity: {severity} | Affected: {affected}"
+                )
+
+            return "\n\n".join(ui_outputs)
+
+        # Rebuild allocation UI when state changes
+        state.change(
+            build_allocation_ui,
+            inputs=[state],
+            outputs=[],
+        )
+
+        def on_run_allocation_from_dropdown(state_dict):
+            """Collect values from dynamically created dropdowns and run allocation."""
+            state_dict = ensure_state_initialized(state_dict)
+            incidents = state_dict.get("incidents", [])
+
+            if not incidents:
+                return "❌ No incidents loaded", 0, {}, {}
+
+            # Build priorities and allocation from state
+            # Note: In production, you'd extract values from actual UI controls
+            # For now, use default values
+            priorities = {}
+            allocation_vals = {}
+
+            for inc in incidents:
+                inc_id = inc.get("incident_id")
+                priorities[inc_id] = "medium"  # Default
+                allocation_vals[inc_id] = 100  # Default
+
+            state_dict["priorities"] = priorities
+            state_dict["allocation"] = allocation_vals
+
+            results_text, reward, scores, explanations, obs = run_allocation(state_dict)
+            return (
+                results_text,
+                reward or 0,
+                scores or {},
+                explanations or {}
+            )
+
+        run_btn.click(
+            on_run_allocation_from_dropdown,
+            inputs=[state],
+            outputs=[results_markdown, final_score_display, scores_json, explanations_json],
+        )
 
     return demo
 
