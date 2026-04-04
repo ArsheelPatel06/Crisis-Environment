@@ -130,6 +130,10 @@ async def get_state():
 
 
 # -------------------- GRADIO UI --------------------
+import requests
+
+BASE_URL = "https://arsheelpatel06-crisis-environment.hf.space"
+
 def gradio_ui():
     with gr.Blocks() as demo:
         gr.Markdown("# 🚨 Crisis Intelligence System")
@@ -137,10 +141,12 @@ def gradio_ui():
         output = gr.JSON()
 
         def check_health():
-            return requests.get("/health").json()
+            res = requests.get(f"{BASE_URL}/health")
+            return res.json()
 
         def reset_easy():
-            return requests.post("/reset?difficulty=easy").json()
+            res = requests.post(f"{BASE_URL}/reset?difficulty=easy")
+            return res.json()
 
         gr.Button("Check Health").click(check_health, outputs=output)
         gr.Button("Reset Easy Task").click(reset_easy, outputs=output)
