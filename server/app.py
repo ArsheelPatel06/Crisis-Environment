@@ -11,19 +11,35 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
-import uuid
 from typing import Dict, Any, Optional
+
+import requests
+import gradio as gr
 
 from env import CrisisEnv
 
-# Global environment instance (single environment per server)
+# Global environment instance
 env: Optional[CrisisEnv] = None
 
-
 # Create FastAPI app
+app = FastAPI(
+    title="Crisis Intelligence Environment API",
+    description="Multi-agent resource allocation for disaster response",
+    version="1.0.0",
+)
+
+# -------------------- STARTUP --------------------
+@app.on_event("startup")
+async def startup():
+    global env
+    env = CrisisEnv()
+    print("✓ CrisisEnv initialized (ready to reset)")
+
+
+# -------------------- ROOT --------------------
 @app.get("/")
 async def root():
     return {
@@ -32,49 +48,24 @@ async def root():
             "/health",
             "/reset?difficulty=easy",
             "/step",
-            "/state"
+            "/state",
+            "/ui"
         ]
     }
 
-app = FastAPI(
-    title="Crisis Intelligence Environment API",
-    description="Multi-agent resource allocation for disaster response",
-    version="1.0.0",
-)
 
-
-@app.on_event("startup")
-async def startup():
-    """Initialize environment on server startup."""
-    global env
-    env = CrisisEnv()
-
-
+# -------------------- HEALTH --------------------
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
-    return {"status": "healthy", "episode_id": env.episode_id if env else None}
+    return {
+        "status": "healthy",
+        "episode_id": env.episode_id if env else None
+    }
 
 
+# -------------------- RESET --------------------
 @app.post("/reset")
 async def reset(difficulty: str = Query("easy", pattern="^(easy|medium|hard)$")):
-    """
-    Reset environment and load a new task.
-
-    Query Parameters:
-    - difficulty: "easy", "medium", or "hard"
-
-    Returns:
-    {
-        "success": true,
-        "observation": {
-            "episode_id": str,
-            "difficulty": str,
-            "input": { task input data },
-            "metadata": { dataset info }
-        }
-    }
-    """
     try:
         observation = env.reset(difficulty=difficulty)
         return {
@@ -85,9 +76,9 @@ async def reset(difficulty: str = Query("easy", pattern="^(easy|medium|hard)$"))
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# -------------------- INPUT --------------------
 @app.get("/input")
 async def get_input():
-    """Get raw input data for current episode."""
     if not env or not env.episode_id:
         raise HTTPException(status_code=400, detail="No active episode. Call /reset first.")
 
@@ -98,44 +89,22 @@ async def get_input():
     }
 
 
+# -------------------- GROUND TRUTH --------------------
 @app.get("/ground_truth")
 async def get_ground_truth():
-    """Get ground truth for current episode (answer key)."""
     if not env or not env.episode_id:
         raise HTTPException(status_code=400, detail="No active episode. Call /reset first.")
 
-    gt = env.get_ground_truth()
     return {
         "success": True,
         "episode_id": env.episode_id,
-        "ground_truth": gt,
+        "ground_truth": env.get_ground_truth(),
     }
 
 
+# -------------------- STEP --------------------
 @app.post("/step")
 async def step(prediction: Dict[str, Any]):
-    """
-    Execute one step: evaluate prediction against ground truth.
-
-    Request body:
-    {
-        "cleaned_data": { incident_id → {severity, people_affected} },
-        "priorities": { incident_id → "high"|"medium"|"low" },
-        "allocation": { incident_id → resource_count }
-    }
-
-    Returns:
-    {
-        "success": true,
-        "observation": { same as reset },
-        "reward": float in [0, 1],
-        "done": true,
-        "info": {
-            "scores": { cleaning, priority, allocation, final },
-            "explanation": { cleaning_feedback, priority_feedback, allocation_feedback }
-        }
-    }
-    """
     try:
         observation, reward, done, info = env.step(prediction)
 
@@ -150,9 +119,9 @@ async def step(prediction: Dict[str, Any]):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# -------------------- STATE --------------------
 @app.get("/state")
 async def get_state():
-    """Get current environment state."""
     return {
         "episode_id": env.episode_id if env else None,
         "step_count": env.step_count if env else None,
@@ -160,18 +129,7 @@ async def get_state():
     }
 
 
-def main():
-    """Main entry point for the server."""
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
-
-
-if __name__ == "__main__":
-    main()
-
-import gradio as gr
-from fastapi.middleware.wsgi import WSGIMiddleware
-
+# -------------------- GRADIO UI --------------------
 def gradio_ui():
     with gr.Blocks() as demo:
         gr.Markdown("# 🚨 Crisis Intelligence System")
@@ -179,16 +137,27 @@ def gradio_ui():
         output = gr.JSON()
 
         def check_health():
-            return {"status": "API running"}
+            return requests.get("/health").json()
 
         def reset_easy():
-            return {"call": "/reset?difficulty=easy"}
+            return requests.post("/reset?difficulty=easy").json()
 
         gr.Button("Check Health").click(check_health, outputs=output)
         gr.Button("Reset Easy Task").click(reset_easy, outputs=output)
 
     return demo
 
-gradio_app = gradio_ui()
 
-app.mount("/ui", gr.mount_gradio_app(app, gradio_app, path="/ui"))
+# Create and mount Gradio app properly
+gradio_app = gradio_ui()
+app = gr.mount_gradio_app(app, gradio_app, path="/ui")
+
+
+# -------------------- MAIN --------------------
+def main():
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
+
+
+if __name__ == "__main__":
+    main()
