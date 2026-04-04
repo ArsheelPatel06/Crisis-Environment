@@ -1,118 +1,196 @@
----
-title: Crisis Environment
-emoji: 🚑
-colorFrom: blue
-colorTo: red
-sdk: docker
-sdk_version: "latest"
-app_file: app.py
-pinned: false
+# 🚨 Crisis Intelligence Environment
+
+A production-ready multi-agent simulation environment for disaster response and resource allocation.
+
 ---
 
-# Crisis Intelligence Environment
+## 🌐 Live Demo
 
-Deterministic evaluation for AI agents on crisis resource allocation under messy, real-world conditions.
+🔗 https://arsheelpatel06-crisis-environment.hf.space  
 
-## Results
+### UI Access:
+👉 https://arsheelpatel06-crisis-environment.hf.space/ui
 
-**Average Score: 0.8742**
-- Easy: 0.8553
-- Medium: 0.8909
-- Hard: 0.8762
+---
 
-## Quick Start
+## 🧠 Problem Statement
 
-### Setup (One-time)
-```bash
-python3 -m venv venv
-source venv/bin/activate  # or: venv\Scripts\activate (Windows)
-pip install -e .
-```
+Simulate real-world crisis scenarios where multiple incidents occur and limited resources must be allocated efficiently.
 
-### Run
-```bash
-# Terminal 1: Start server
-python3 -m uvicorn server.app:app --host 0.0.0.0 --port 7860
+The system evaluates:
+- Data cleaning  
+- Priority assignment  
+- Resource allocation  
 
-# Terminal 2: Run inference (heuristic agent by default)
-python3 inference.py
+---
 
-# Or test other agents:
-python3 inference.py --agent random    # Random baseline (control)
-python3 inference.py --agent greedy    # Greedy baseline
-python3 inference.py --agent heuristic # Heuristic agent (default)
-```
+## ⚙️ Features
 
-## What It Does
+- 🧪 Multi-difficulty scenarios (easy, medium, hard)  
+- 🤖 Multiple agent strategies:
+  - Greedy Agent  
+  - Heuristic Agent  
+  - Random Agent  
+- 📊 Evaluation with reward scoring  
+- 🔌 REST API for integration  
+- 🌐 Interactive UI using Gradio  
+- 🐳 Dockerized deployment  
 
-Evaluates agents handling crisis resource allocation with:
-- **Messy data**: Text numbers ("sixty"), formatted ("1,100"), roman numerals (III)
-- **Missing fields**: Fallback to alternative sources
-- **Conflicting signals**: Low severity + huge population = HIGH priority
-- **Deterministic scoring**: Reproducible, no randomness
+---
 
-## Scoring Formula
-
-**Final Score = 0.5×Cleaning + 0.2×Priority + 0.3×Allocation**
-
-Components scored in [0, 1] range on:
-1. **Cleaning** - Data parsing accuracy
-2. **Priority** - Incident classification (high/medium/low)
-3. **Allocation** - Resource distribution optimality
-
-## Approach
-
-**Data-Aware Rules** (not linear scoring):
-```
-if population > 3000:                 → HIGH
-if severity >= 4 and population > 200: → HIGH
-if severity >= 4:                      → MEDIUM
-if population > 500:                   → MEDIUM
-else:                                  → LOW
-```
-
-**Tier-Based Allocation**:
-- 65% to high priority
-- 25% to medium priority
-- 10% to low priority
-
-## Architecture
-
-```
-env/         Core environment
-server/      FastAPI backend (6 endpoints)
-agents/      Baseline agents
-data/        Test datasets (easy/medium/hard - adversarial)
-tests/       Test suite (10/10 passing)
-inference.py Competition format runner
-```
-
-## API
-
-| Endpoint | Method |
-|----------|--------|
-| `/reset` | POST |
-| `/step` | POST |
-| `/health` | GET |
-| `/ground_truth` | GET |
-| `/input` | GET |
-| `/state` | GET |
-
-## Docker
+## 📁 Project Structure
 
 ```bash
-docker build -t crisis-env .
-docker run -p 7860:7860 crisis-env
-```
-
-Test: `curl http://localhost:7860/health`
-
-## Validation
-
-```bash
-bash validate-submission.sh
+Crisis_Environment/
+│
+├── agents/              # Agent strategies
+├── data/                # Scenario datasets
+├── env/                 # Core environment logic
+├── server/              # FastAPI backend
+├── tests/               # API & integration tests
+│
+├── app.py               # Entry point
+├── inference.py         # Agent execution logic
+├── openenv.yaml         # OpenEnv configuration
+├── Dockerfile           # Deployment configuration
+├── requirements.txt     # Dependencies
+├── README.md
 ```
 
 ---
 
-**OpenEnv Compatible** | **Production Ready** | **Deterministic**
+## 🚀 Running Locally
+
+### 1. Clone repository
+
+```bash
+git clone https://github.com/ArsheelPatel06/Crisis-Environment.git
+cd Crisis_Environment
+```
+
+### 2. Create virtual environment
+
+```bash
+python -m venv venv
+```
+
+Activate it:
+
+```bash
+# Mac/Linux
+source venv/bin/activate  
+
+# Windows
+venv\Scripts\activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Run the server
+
+```bash
+uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
+```
+
+### 5. Access locally
+
+- API: http://localhost:7860  
+- UI: http://localhost:7860/ui  
+
+---
+
+## 📡 API Endpoints
+
+| Endpoint        | Method | Description              |
+|----------------|--------|--------------------------|
+| `/`            | GET    | Root info                |
+| `/health`      | GET    | Health check             |
+| `/reset`       | POST   | Start new scenario       |
+| `/input`       | GET    | Get current input        |
+| `/ground_truth`| GET    | Get correct answer       |
+| `/step`        | POST   | Submit prediction        |
+| `/state`       | GET    | Environment state        |
+
+---
+
+## 🧪 Example Usage
+
+### Health check
+
+```bash
+curl http://localhost:7860/health
+```
+
+### Reset environment
+
+```bash
+curl -X POST "http://localhost:7860/reset?difficulty=easy"
+```
+
+---
+
+## 🖥️ UI Features
+
+- Check API health  
+- Reset environment with predefined scenarios  
+- View structured JSON responses  
+- Interact with backend without writing code  
+
+---
+
+## 🤗 Hugging Face Deployment
+
+This project is deployed using Docker Spaces on Hugging Face.
+
+### Key Details:
+
+- Docker-based deployment  
+- FastAPI server running on port 7860  
+- Gradio UI mounted at `/ui`  
+
+### Steps followed:
+
+1. Created Hugging Face Space (Docker)  
+2. Added project files  
+3. Configured Dockerfile  
+4. Exposed FastAPI app  
+5. Mounted Gradio UI  
+
+---
+
+## 👥 Contributors
+
+- Arsheel Patel  
+- Sufyan Khan  
+- Saif Salmani  
+
+---
+
+## 🧠 Notes
+
+- API is stateful (one active episode at a time)  
+- Designed for extensibility (add new agents easily)  
+- Backend and UI communicate via REST APIs  
+- Suitable for simulation, evaluation, and experimentation  
+
+---
+
+## 🏁 Submission
+
+This repository is part of a hackathon submission demonstrating:
+
+- Backend system design (FastAPI)  
+- API engineering  
+- Docker-based deployment  
+- Full-stack integration (API + UI)  
+- Real-time simulation environment  
+
+---
+
+## 📜 License
+
+MIT License
