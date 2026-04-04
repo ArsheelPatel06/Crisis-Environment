@@ -24,6 +24,18 @@ env: Optional[CrisisEnv] = None
 
 
 # Create FastAPI app
+@app.get("/")
+async def root():
+    return {
+        "message": "Crisis Intelligence API is running 🚀",
+        "endpoints": [
+            "/health",
+            "/reset?difficulty=easy",
+            "/step",
+            "/state"
+        ]
+    }
+
 app = FastAPI(
     title="Crisis Intelligence Environment API",
     description="Multi-agent resource allocation for disaster response",
@@ -156,3 +168,27 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+import gradio as gr
+from fastapi.middleware.wsgi import WSGIMiddleware
+
+def gradio_ui():
+    with gr.Blocks() as demo:
+        gr.Markdown("# 🚨 Crisis Intelligence System")
+
+        output = gr.JSON()
+
+        def check_health():
+            return {"status": "API running"}
+
+        def reset_easy():
+            return {"call": "/reset?difficulty=easy"}
+
+        gr.Button("Check Health").click(check_health, outputs=output)
+        gr.Button("Reset Easy Task").click(reset_easy, outputs=output)
+
+    return demo
+
+gradio_app = gradio_ui()
+
+app.mount("/ui", gr.mount_gradio_app(app, gradio_app, path="/ui"))
