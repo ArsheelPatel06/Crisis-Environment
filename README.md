@@ -1,3 +1,12 @@
+
+title: Crisis Environment
+emoji: 🚑
+colorFrom: blue
+colorTo: red
+sdk: docker
+app_file: app.py
+pinned: false
+
 # Crisis Intelligence Environment
 
 Deterministic evaluation for AI agents on crisis resource allocation under messy, real-world conditions.
