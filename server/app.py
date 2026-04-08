@@ -285,8 +285,7 @@ def run_allocation(state_dict):
 
 def gradio_ui():
     """Build the professional Gradio UI."""
-    # State management - use separate state variables instead of complex nesting
-    state_episodes = gr.State(value={})
+    # State management - hidden components to store data
     state_incidents = gr.State(value=[])
 
     with gr.Blocks(title="Crisis Intelligence System") as demo:
@@ -299,8 +298,8 @@ def gradio_ui():
             gr.Markdown("## 📊 System Status")
             with gr.Row():
                 health_btn = gr.Button("Check System Health", scale=1, variant="primary")
-                health_status = gr.Label(value="Unknown", label="Status")
-                episode_display = gr.Label(value="No Episode", label="Episode ID")
+                health_status = gr.Textbox(value="Unknown", label="Status", interactive=False)
+                episode_display = gr.Textbox(value="No Episode", label="Episode ID", interactive=False)
 
             health_btn.click(
                 check_health,
@@ -319,7 +318,7 @@ def gradio_ui():
                 )
                 reset_btn = gr.Button("Start New Scenario", scale=1, variant="primary")
 
-            reset_status = gr.Label(value="Ready", label="Status")
+            reset_status = gr.Textbox(value="Ready", label="Status", interactive=False)
 
             with gr.Row():
                 episode_id_display = gr.Textbox(label="Episode ID", interactive=False)
@@ -384,7 +383,7 @@ def gradio_ui():
                 ep_id or "",
                 res_total or 0,
                 table_data or [],
-                incidents,
+                incidents,  # This updates state_incidents
             )
 
         reset_btn.click(
@@ -393,8 +392,10 @@ def gradio_ui():
             outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state_incidents],
         )
 
-        def on_run_allocation(incidents_list):
+        def on_run_allocation(state_incidents_value):
             """Handle run allocation button click."""
+            incidents_list = state_incidents_value if state_incidents_value else []
+
             if not incidents_list:
                 return "❌ No incidents loaded", 0, {}, {}
 

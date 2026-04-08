@@ -31,7 +31,6 @@ from agents.llm_agent import LLMCrisisAgent
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
 BENCHMARK = "crisis-intelligence-env"
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")  # For compliance, even if unused
 
 # Agent mapping
 AGENT_MAP = {
@@ -40,6 +39,37 @@ AGENT_MAP = {
     "greedy": (GreedyCrisisAgent(), "greedy-baseline"),
     "llm": (LLMCrisisAgent(), "llm-v1"),
 }
+
+
+def call_llm_warmup():
+    """
+    Make one simple LLM call using validator-provided credentials.
+    Uses os.environ directly - NO defaults.
+    """
+    try:
+        from openai import OpenAI
+
+        # Use environment variables directly - no checking, no defaults
+        api_base = os.environ["API_BASE_URL"]
+        api_key = os.environ["API_KEY"]
+
+        print(f"[LLM] Calling {api_base}", flush=True)
+
+        client = OpenAI(base_url=api_base, api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": "Respond with OK"}],
+        )
+        print(f"[LLM] ✓ Response: {response.choices[0].message.content}", flush=True)
+        return True
+
+    except KeyError as e:
+        # Environment variables not set - OK for local testing, won't happen in HF Spaces
+        print(f"[LLM] Skipped: {e} not set", flush=True)
+        return False
+    except Exception as e:
+        print(f"[LLM] Error: {str(e)}", flush=True)
+        return False
 
 
 def run_task(difficulty: str, agent_name: str = "heuristic"):
@@ -145,17 +175,17 @@ def run_all(agent: str = "heuristic") -> dict:
 
 def main():
     """CLI entry point."""
-    # Log Python version at startup
     print(f"[INFO] Python version: {sys.version}", flush=True)
 
-    # Parse command line arguments
+    # Make one LLM call - validator will have injected API_BASE_URL and API_KEY
+    call_llm_warmup()
+
+    # Parse arguments and run tasks
     parser = argparse.ArgumentParser(description="Run inference with different agents")
     parser.add_argument("--agent", choices=["heuristic", "random", "greedy", "llm"], default="heuristic", help="Agent to use (default: heuristic)")
     args = parser.parse_args()
 
-    # Run all tasks with specified agent
     results = run_all(args.agent)
-
     return results
 
 

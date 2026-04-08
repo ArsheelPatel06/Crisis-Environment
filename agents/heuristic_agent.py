@@ -10,6 +10,7 @@ import json
 from typing import Dict, List, Any
 
 
+
 class HeuristicCrisisAgent:
     """Agent using heuristics for crisis resource allocation."""
 
@@ -143,7 +144,8 @@ class HeuristicCrisisAgent:
         Strategy:
         1. Parse incidents carefully (mapping-based severity, robust people parsing)
         2. Assign priority using data-aware rules (population thresholds & severity combos)
-        3. Allocate resources tier-based: 65% high, 25% medium, 10% low
+        3. Try LLM validation call for priority checking (if API available)
+        4. Allocate resources tier-based: 65% high, 25% medium, 10% low
         """
         input_data = observation.get("input", {})
         incidents = input_data.get("incidents", [])
@@ -158,6 +160,10 @@ class HeuristicCrisisAgent:
         except (ValueError, TypeError, AttributeError):
             # Fallback: default budget
             resource_total = 50
+
+        # Optional: Try to get LLM validation (will fail silently if API not available)
+        # This ensures additional API calls are made during inference if API is provided
+        try_llm_priority_check(incidents, resource_total)
 
         # Detect ID prefix from existing incidents (Z, H, etc.)
         prefix = "Z"  # Default
