@@ -27,6 +27,7 @@ import os
 from agents.heuristic_agent import HeuristicCrisisAgent
 from agents.random_agent import RandomCrisisAgent
 from agents.greedy_agent import GreedyCrisisAgent
+from agents.llm_agent import LLMCrisisAgent
 
 BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
 BENCHMARK = "crisis-intelligence-env"
@@ -37,6 +38,7 @@ AGENT_MAP = {
     "heuristic": (HeuristicCrisisAgent(), "heuristic-v1"),
     "random": (RandomCrisisAgent(), "random-baseline"),
     "greedy": (GreedyCrisisAgent(), "greedy-baseline"),
+    "llm": (LLMCrisisAgent(), "llm-v1"),
 }
 
 
@@ -148,7 +150,7 @@ def main():
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="Run inference with different agents")
-    parser.add_argument("--agent", choices=["heuristic", "random", "greedy"], default="heuristic", help="Agent to use (default: heuristic)")
+    parser.add_argument("--agent", choices=["heuristic", "random", "greedy", "llm"], default="heuristic", help="Agent to use (default: heuristic)")
     args = parser.parse_args()
 
     # Run all tasks with specified agent
