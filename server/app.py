@@ -285,10 +285,10 @@ def run_allocation(state_dict):
 
 def gradio_ui():
     """Build the professional Gradio UI."""
-    # State management - hidden components to store data
-    state_incidents = gr.State(value=[])
-
     with gr.Blocks(title="Crisis Intelligence System") as demo:
+        # Hidden component to store incidents JSON (more reliable than State with FastAPI mounting)
+        incidents_storage = gr.Textbox(visible=False, value="[]")
+
         # Title
         gr.Markdown("# 🚨 Crisis Intelligence System")
         gr.Markdown("Professional resource allocation dashboard for disaster response")
@@ -383,18 +383,22 @@ def gradio_ui():
                 ep_id or "",
                 res_total or 0,
                 table_data or [],
-                incidents,  # This updates state_incidents
+                json.dumps(incidents),  # Store as JSON string in hidden Textbox
             )
 
         reset_btn.click(
             on_reset,
             inputs=[difficulty_dropdown],
-            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state_incidents],
+            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, incidents_storage],
         )
 
-        def on_run_allocation(state_incidents_value):
+        def on_run_allocation(incidents_json):
             """Handle run allocation button click."""
-            incidents_list = state_incidents_value if state_incidents_value else []
+            # Parse JSON from hidden storage
+            try:
+                incidents_list = json.loads(incidents_json) if incidents_json else []
+            except:
+                incidents_list = []
 
             if not incidents_list:
                 return "❌ No incidents loaded", 0, {}, {}
@@ -422,7 +426,7 @@ def gradio_ui():
 
         run_btn.click(
             on_run_allocation,
-            inputs=[state_incidents],
+            inputs=[incidents_storage],
             outputs=[results_markdown, final_score_display, scores_json, explanations_json],
         )
 
