@@ -3,9 +3,7 @@ title: Crisis Environment
 emoji: 🚨
 colorFrom: red
 colorTo: blue
-sdk: gradio
 sdk: docker
-sdk_version: 4.44.0
 app_file: app.py
 ---
 
