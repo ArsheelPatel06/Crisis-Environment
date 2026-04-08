@@ -269,13 +269,14 @@ def gradio_ui():
     """Build the professional Gradio UI."""
     state = gr.State(value={})
 
-    with gr.Blocks(title="Crisis Intelligence System", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Crisis Intelligence System") as demo:
         # Title
         gr.Markdown("# 🚨 Crisis Intelligence System")
         gr.Markdown("Professional resource allocation dashboard for disaster response")
 
-        # ==================== SECTION 1: System Status ====================
-        with gr.Group(label="📊 System Status"):
+        # ==================== SECTION 1 ====================
+        with gr.Group():
+            gr.Markdown("## 📊 System Status")
             with gr.Row():
                 health_btn = gr.Button("Check System Health", scale=1, variant="primary")
                 health_status = gr.Label(value="Unknown", label="Status")
@@ -286,8 +287,9 @@ def gradio_ui():
                 outputs=[health_status, episode_display],
             )
 
-        # ==================== SECTION 2: Task Initialization ====================
-        with gr.Group(label="🎯 Task Initialization"):
+        # ==================== SECTION 2 ====================
+        with gr.Group():
+            gr.Markdown("## 🎯 Task Initialization")
             with gr.Row():
                 difficulty_dropdown = gr.Dropdown(
                     choices=["easy", "medium", "hard"],
@@ -303,8 +305,9 @@ def gradio_ui():
                 episode_id_display = gr.Textbox(label="Episode ID", interactive=False)
                 resource_total_display = gr.Number(label="Total Resources", interactive=False)
 
-        # ==================== SECTION 3: Incident Viewer ====================
-        with gr.Group(label="📋 Incident Viewer"):
+        # ==================== SECTION 3 ====================
+        with gr.Group():
+            gr.Markdown("## 📋 Incident Viewer")
             incident_table = gr.Dataframe(
                 headers=["Incident ID", "Severity", "People Affected", "Description"],
                 label="Active Incidents",
@@ -312,14 +315,14 @@ def gradio_ui():
                 wrap=True,
             )
 
-        # ==================== SECTION 4: Resource Allocation Panel ====================
-        allocation_group = gr.Group(label="💼 Resource Allocation Panel", visible=False)
+        # ==================== SECTION 4 ====================
+        allocation_group = gr.Group(visible=False)
         with allocation_group:
+            gr.Markdown("## 💼 Resource Allocation Panel")
             gr.Markdown("Configure priorities and resource allocation for each incident")
 
             allocation_container = gr.Column()
 
-            # We'll dynamically populate this with incident controls
             with allocation_container:
                 gr.Textbox(
                     value="Load a scenario to see incidents",
@@ -327,12 +330,15 @@ def gradio_ui():
                     interactive=False
                 )
 
-        # ==================== SECTION 5: Run Allocation ====================
-        with gr.Group(label="▶️ Execute Allocation"):
+        # ==================== SECTION 5 ====================
+        with gr.Group():
+            gr.Markdown("## ▶️ Execute Allocation")
             run_btn = gr.Button("Run Allocation", scale=1, variant="primary", size="lg")
 
-        # ==================== SECTION 6: Results Display ====================
-        with gr.Group(label="🎖️ Results & Scores"):
+        # ==================== SECTION 6 ====================
+        with gr.Group():
+            gr.Markdown("## 🎖️ Results & Scores")
+
             results_markdown = gr.Markdown("Results will appear here after running allocation")
 
             with gr.Row():
@@ -344,17 +350,13 @@ def gradio_ui():
             with gr.Accordion(label="Feedback", open=False):
                 explanations_json = gr.JSON(label="Feedback Details")
 
-        # ==================== EVENT HANDLERS ====================
+        # ==================== EVENTS ====================
 
         def on_reset_with_state(difficulty):
-            """Reset scenario and populate allocation UI."""
             status, ep_id, res_total, table_data = reset_task(difficulty)
 
-            # Extract incidents from state
             new_state = ensure_state_initialized({})
-            status_text, _, _, table_data = reset_task(difficulty)
 
-            # Re-fetch to populate state with incidents
             try:
                 res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}")
                 data = res.json()
@@ -384,16 +386,13 @@ def gradio_ui():
         )
 
         def build_allocation_ui(state_dict):
-            """Rebuild allocation UI when state changes."""
             state_dict = ensure_state_initialized(state_dict)
             incidents = state_dict.get("incidents", [])
 
             if not incidents:
                 return None
 
-            # Create dynamic components for each incident
             ui_outputs = []
-
             for inc in incidents:
                 inc_id = inc.get("incident_id", "Unknown")
                 severity = inc.get("severity", "N/A")
@@ -405,7 +404,6 @@ def gradio_ui():
 
             return "\n\n".join(ui_outputs)
 
-        # Rebuild allocation UI when state changes
         state.change(
             build_allocation_ui,
             inputs=[state],
@@ -413,28 +411,24 @@ def gradio_ui():
         )
 
         def on_run_allocation_from_dropdown(state_dict):
-            """Collect values from dynamically created dropdowns and run allocation."""
             state_dict = ensure_state_initialized(state_dict)
             incidents = state_dict.get("incidents", [])
 
             if not incidents:
                 return "❌ No incidents loaded", 0, {}, {}
 
-            # Build priorities and allocation from state
-            # Note: In production, you'd extract values from actual UI controls
-            # For now, use default values
             priorities = {}
             allocation_vals = {}
 
             for inc in incidents:
                 inc_id = inc.get("incident_id")
-                priorities[inc_id] = "medium"  # Default
-                allocation_vals[inc_id] = 100  # Default
+                priorities[inc_id] = "medium"
+                allocation_vals[inc_id] = 100
 
             state_dict["priorities"] = priorities
             state_dict["allocation"] = allocation_vals
 
-            results_text, reward, scores, explanations, obs = run_allocation(state_dict)
+            results_text, reward, scores, explanations, _ = run_allocation(state_dict)
             return (
                 results_text,
                 reward or 0,
