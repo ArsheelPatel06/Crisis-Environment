@@ -1,5 +1,10 @@
 # -------------------- GRADIO UI --------------------
 import os
+from fastapi import FastAPI
+import requests
+import gradio as gr   # ← MUST BE HERE
+
+# rest of code...
 
 BASE_URL = "http://127.0.0.1:7860"
 

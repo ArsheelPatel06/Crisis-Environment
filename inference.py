@@ -13,19 +13,23 @@ print(f"[INFO] Python version: {sys.version}", flush=True)
 
 # -------------------- ENV --------------------
 API_BASE_URL = os.getenv("API_BASE_URL")
-
-if API_BASE_URL is None:
+if not API_BASE_URL:
     raise ValueError("API_BASE_URL is required")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
-HF_TOKEN = os.getenv("HF_TOKEN")
-ENV_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
 
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
+
+API_KEY = os.getenv("API_KEY") or os.getenv("HF_TOKEN")
+if not API_KEY:
+    raise ValueError("API_KEY or HF_TOKEN is required")
+
+ENV_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")
 
 BENCHMARK = "crisis-intelligence-env"
 
-client = OpenAI(base_url=API_BASE_URL, api_key=HF_TOKEN)
+client = OpenAI(
+    base_url=API_BASE_URL,
+    api_key=API_KEY
+)
 
 # -------------------- SYSTEM PROMPT --------------------
 SYSTEM_PROMPT = """You are a crisis resource allocation AI agent.
