@@ -12,7 +12,10 @@ from openai import OpenAI
 print(f"[INFO] Python version: {sys.version}", flush=True)
 
 # -------------------- ENV --------------------
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
+API_BASE_URL = os.getenv("API_BASE_URL")
+
+if API_BASE_URL is None:
+    raise ValueError("API_BASE_URL is required")
 MODEL_NAME = os.getenv("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
 ENV_URL = os.getenv("ENV_BASE_URL", "http://localhost:7860")

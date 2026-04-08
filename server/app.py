@@ -1,448 +1,168 @@
-"""
-Crisis Intelligence Environment - FastAPI Server
-
-Production-grade REST API with OpenEnv-compatible endpoints.
-
-Usage:
-    python -m uvicorn server.app:app --host 0.0.0.0 --port 7860 --reload
-"""
-
-import sys
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from fastapi import FastAPI, HTTPException, Query
-from typing import Dict, Any, Optional, List
-
-import requests
-import gradio as gr
-
-from env import CrisisEnv
-
-# Global environment instance
-env: Optional[CrisisEnv] = None
-
-# Create FastAPI app
-app = FastAPI(
-    title="Crisis Intelligence Environment API",
-    description="Multi-agent resource allocation for disaster response",
-    version="1.0.0",
-)
-
-# -------------------- STARTUP --------------------
-@app.on_event("startup")
-async def startup():
-    global env
-    env = CrisisEnv()
-    print("✓ CrisisEnv initialized (ready to reset)")
-
-
-# -------------------- ROOT --------------------
-@app.get("/")
-async def root():
-    return {
-        "message": "Crisis Intelligence API is running 🚀",
-        "endpoints": [
-            "/health",
-            "/reset?difficulty=easy",
-            "/step",
-            "/state",
-            "/ui"
-        ]
-    }
-
-
-# -------------------- HEALTH --------------------
-@app.get("/health")
-async def health():
-    return {
-        "status": "healthy",
-        "episode_id": env.episode_id if env else None
-    }
-
-
-# -------------------- RESET --------------------
-@app.post("/reset")
-async def reset(difficulty: str = Query("easy", pattern="^(easy|medium|hard)$")):
-    try:
-        observation = env.reset(difficulty=difficulty)
-        return {
-            "success": True,
-            "observation": observation,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-# -------------------- INPUT --------------------
-@app.get("/input")
-async def get_input():
-    if not env or not env.episode_id:
-        raise HTTPException(status_code=400, detail="No active episode. Call /reset first.")
-
-    return {
-        "success": True,
-        "episode_id": env.episode_id,
-        "input": env.get_input(),
-    }
-
-
-# -------------------- GROUND TRUTH --------------------
-@app.get("/ground_truth")
-async def get_ground_truth():
-    if not env or not env.episode_id:
-        raise HTTPException(status_code=400, detail="No active episode. Call /reset first.")
-
-    return {
-        "success": True,
-        "episode_id": env.episode_id,
-        "ground_truth": env.get_ground_truth(),
-    }
-
-
-# -------------------- STEP --------------------
-@app.post("/step")
-async def step(prediction: Dict[str, Any]):
-    try:
-        observation, reward, done, info = env.step(prediction)
-
-        return {
-            "success": True,
-            "observation": observation,
-            "reward": reward,
-            "done": done,
-            "info": info,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-# -------------------- STATE --------------------
-@app.get("/state")
-async def get_state():
-    return {
-        "episode_id": env.episode_id if env else None,
-        "step_count": env.step_count if env else None,
-        "done": env.done if env else None,
-    }
-
-
 # -------------------- GRADIO UI --------------------
 import os
 
-# Use localhost for server-side requests (both FastAPI and Gradio run in same container)
 BASE_URL = "http://127.0.0.1:7860"
 
-def ensure_state_initialized(state_dict):
-    """Initialize state with default values if needed."""
-    if state_dict is None:
-        state_dict = {}
-    defaults = {
-        "incidents": [],
-        "episode_id": None,
-        "resource_units_total": 0,
-        "priorities": {},
-        "allocation": {},
-    }
-    for key, value in defaults.items():
-        if key not in state_dict:
-            state_dict[key] = value
-    return state_dict
 
 def check_health():
-    """Check system health status."""
     try:
         res = requests.get(f"{BASE_URL}/health", timeout=5)
         if res.status_code != 200:
-            print(f"[HEALTH] Status {res.status_code}: {res.text}")
-            return f"❌ Error (code {res.status_code})", "N/A"
+            return f"❌ Error ({res.status_code})", "N/A"
+
         data = res.json()
-        status = "✅ Healthy"
-        return status, data.get("episode_id", "None")
+        return "✅ Healthy", data.get("episode_id", "None")
+
     except Exception as e:
-        print(f"[HEALTH ERROR] {str(e)}")
-        return f"❌ Error: {str(e)}", "N/A"
+        return f"❌ {str(e)}", "N/A"
+
 
 def reset_task(difficulty):
-    """Reset the environment with selected difficulty."""
     try:
-        res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}", timeout=10)
+        res = requests.post(f"{BASE_URL}/reset", params={"difficulty": difficulty}, timeout=10)
+
         if res.status_code != 200:
-            print(f"[RESET] Status {res.status_code}: {res.text}")
-            return f"❌ Error: HTTP {res.status_code}", None, None, None
+            return f"❌ HTTP {res.status_code}", "", 0, [], "[]"
 
         data = res.json()
 
-        if not data.get("success", False):
-            print(f"[RESET] Success=false: {data}")
-            return "❌ Reset failed", None, None, None
+        if not data.get("success"):
+            return "❌ Reset failed", "", 0, [], "[]"
 
-        observation = data.get("observation", {})
+        observation = data["observation"]
         input_data = observation.get("input", {})
+
         incidents = input_data.get("incidents", [])
-        episode_id = observation.get("episode_id", "Unknown")
+        episode_id = observation.get("episode_id", "")
         resource_total = input_data.get("resource_units_total", 0)
 
-        # Return incidents as table data
-        table_data = []
-        for inc in incidents:
-            table_data.append([
+        table_data = [
+            [
                 inc.get("incident_id", "N/A"),
                 str(inc.get("severity", "N/A")),
                 str(inc.get("people_affected", 0)),
-                inc.get("description", "No description")[:50],
-            ])
+                inc.get("description", "")[:50],
+            ]
+            for inc in incidents
+        ]
 
-        state = {
-            "incidents": incidents,
-            "episode_id": episode_id,
-            "resource_units_total": resource_total,
-            "priorities": {},
-            "allocation": {},
-        }
+        return (
+            f"✅ Reset ({difficulty})",
+            episode_id,
+            resource_total,
+            table_data,
+            json.dumps(incidents),
+        )
 
-        return f"✅ Reset to {difficulty} difficulty", episode_id, resource_total, table_data
     except Exception as e:
-        print(f"[RESET ERROR] {str(e)}")
-        return f"❌ Error: {str(e)}", None, None, None
+        return f"❌ {str(e)}", "", 0, [], "[]"
 
-def update_priority(state_dict, incident_id, priority):
-    """Update priority for an incident."""
-    state_dict = ensure_state_initialized(state_dict)
-    state_dict["priorities"][incident_id] = priority
-    return state_dict
 
-def update_allocation(state_dict, incident_id, resources):
-    """Update resource allocation for an incident."""
-    state_dict = ensure_state_initialized(state_dict)
+def run_allocation(incidents_json):
     try:
-        state_dict["allocation"][incident_id] = int(resources) if resources else 0
-    except:
-        state_dict["allocation"][incident_id] = 0
-    return state_dict
+        incidents = json.loads(incidents_json) if incidents_json else []
 
-def run_allocation(state_dict):
-    """Execute the allocation step."""
-    state_dict = ensure_state_initialized(state_dict)
+        if not incidents:
+            return "❌ No incidents loaded", 0, {}, {}
 
-    try:
-        # Build the prediction payload
+        # simple safe allocation
+        resource_total = 100
+        per = max(1, resource_total // max(1, len(incidents)))
+
         prediction = {
-            "cleaned_data": {},  # Users would clean this; here we use incidents as-is
-            "priorities": state_dict.get("priorities", {}),
-            "allocation": state_dict.get("allocation", {}),
-        }
-
-        # Add cleaned data from incidents
-        for inc in state_dict.get("incidents", []):
-            inc_id = inc.get("incident_id")
-            if inc_id:
-                prediction["cleaned_data"][inc_id] = {
-                    "severity": inc.get("severity"),
-                    "people_affected": inc.get("people_affected"),
+            "cleaned_data": {
+                inc.get("incident_id", "UNK"): {
+                    "severity": inc.get("severity", 3),
+                    "people_affected": inc.get("people_affected", 0),
                 }
+                for inc in incidents
+            },
+            "priorities": {
+                inc.get("incident_id", "UNK"): "medium"
+                for inc in incidents
+            },
+            "allocation": {
+                inc.get("incident_id", "UNK"): per
+                for inc in incidents
+            },
+        }
 
         res = requests.post(f"{BASE_URL}/step", json=prediction, timeout=10)
+
         if res.status_code != 200:
-            print(f"[STEP] Status {res.status_code}: {res.text}")
-            return f"❌ Error: HTTP {res.status_code}", None, None, None, None
+            return f"❌ HTTP {res.status_code}", 0, {}, {}
 
         data = res.json()
 
-        if not data.get("success", False):
-            print(f"[STEP] Success=false: {data}")
-            return "❌ Step failed", None, None, None, None
+        if not data.get("success"):
+            return "❌ Step failed", 0, {}, {}
 
         info = data.get("info", {})
         scores = info.get("scores", {})
-        explanations = info.get("explanation", {})
-
         reward = scores.get("final", 0)
 
-        # Build results display
-        results_text = f"""
-### 🏆 Allocation Results
-
-**Final Score: {reward:.4f} / 1.0**
-
-#### Score Breakdown:
-- **Cleaning:** {scores.get('cleaning', 0):.4f} / 0.5000
-- **Priority:** {scores.get('priority', 0):.4f} / 0.2000
-- **Allocation:** {scores.get('allocation', 0):.4f} / 0.3000
-
-#### Feedback:
-- {explanations.get('cleaning_feedback', 'N/A')}
-- {explanations.get('priority_feedback', 'N/A')}
-- {explanations.get('allocation_feedback', 'N/A')}
-"""
-
-        return results_text, reward, scores, explanations, data.get("observation")
-    except Exception as e:
-        print(f"[STEP ERROR] {str(e)}")
-        return f"❌ Error: {str(e)}", None, None, None, None
-
-def gradio_ui():
-    """Build the professional Gradio UI."""
-    with gr.Blocks(title="Crisis Intelligence System") as demo:
-        # Hidden component to store incidents JSON (more reliable than State with FastAPI mounting)
-        incidents_storage = gr.Textbox(visible=False, value="[]")
-
-        # Title
-        gr.Markdown("# 🚨 Crisis Intelligence System")
-        gr.Markdown("Professional resource allocation dashboard for disaster response")
-
-        # ==================== SECTION 1 ====================
-        with gr.Group():
-            gr.Markdown("## 📊 System Status")
-            with gr.Row():
-                health_btn = gr.Button("Check System Health", scale=1, variant="primary")
-                health_status = gr.Textbox(value="Unknown", label="Status", interactive=False)
-                episode_display = gr.Textbox(value="No Episode", label="Episode ID", interactive=False)
-
-            health_btn.click(
-                check_health,
-                outputs=[health_status, episode_display],
-            )
-
-        # ==================== SECTION 2 ====================
-        with gr.Group():
-            gr.Markdown("## 🎯 Task Initialization")
-            with gr.Row():
-                difficulty_dropdown = gr.Dropdown(
-                    choices=["easy", "medium", "hard"],
-                    value="easy",
-                    label="Difficulty",
-                    scale=1
-                )
-                reset_btn = gr.Button("Start New Scenario", scale=1, variant="primary")
-
-            reset_status = gr.Textbox(value="Ready", label="Status", interactive=False)
-
-            with gr.Row():
-                episode_id_display = gr.Textbox(label="Episode ID", interactive=False)
-                resource_total_display = gr.Number(label="Total Resources", interactive=False)
-
-        # ==================== SECTION 3 ====================
-        with gr.Group():
-            gr.Markdown("## 📋 Incident Viewer")
-            incident_table = gr.Dataframe(
-                headers=["Incident ID", "Severity", "People Affected", "Description"],
-                label="Active Incidents",
-                interactive=False,
-                wrap=True,
-            )
-
-        # ==================== SECTION 4 ====================
-        with gr.Group():
-            gr.Markdown("## 💼 Resource Allocation")
-            gr.Markdown("Incidents will be prioritized using heuristics or LLM (if configured)")
-
-        # ==================== SECTION 5 ====================
-        with gr.Group():
-            gr.Markdown("## ▶️ Execute Allocation")
-            run_btn = gr.Button("Run Allocation", scale=1, variant="primary", size="lg")
-
-        # ==================== SECTION 6 ====================
-        with gr.Group():
-            gr.Markdown("## 🎖️ Results & Scores")
-
-            results_markdown = gr.Markdown("Results will appear here after running allocation")
-
-            with gr.Row():
-                final_score_display = gr.Number(label="Final Score", interactive=False, value=0)
-
-            with gr.Accordion(label="Score Breakdown", open=False):
-                scores_json = gr.JSON(label="Detailed Scores")
-
-            with gr.Accordion(label="Feedback", open=False):
-                explanations_json = gr.JSON(label="Feedback Details")
-
-        # ==================== EVENTS ====================
-
-        def on_reset(difficulty):
-            """Handle reset button click."""
-            status, ep_id, res_total, table_data = reset_task(difficulty)
-
-            # Get full incidents for state storage
-            incidents = []
-            if ep_id and table_data:
-                try:
-                    res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}", timeout=10)
-                    if res.status_code == 200:
-                        data = res.json()
-                        if data.get("success"):
-                            observation = data.get("observation", {})
-                            incidents = observation.get("input", {}).get("incidents", [])
-                except Exception as e:
-                    print(f"[on_reset ERROR] {str(e)}")
-
-            return (
-                status,
-                ep_id or "",
-                res_total or 0,
-                table_data or [],
-                json.dumps(incidents),  # Store as JSON string in hidden Textbox
-            )
-
-        reset_btn.click(
-            on_reset,
-            inputs=[difficulty_dropdown],
-            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, incidents_storage],
+        return (
+            f"✅ Score: {reward:.4f}",
+            reward,
+            scores,
+            info.get("explanation", {}),
         )
 
-        def on_run_allocation(incidents_json):
-            """Handle run allocation button click."""
-            # Parse JSON from hidden storage
-            try:
-                incidents_list = json.loads(incidents_json) if incidents_json else []
-            except:
-                incidents_list = []
+    except Exception as e:
+        return f"❌ {str(e)}", 0, {}, {}
 
-            if not incidents_list:
-                return "❌ No incidents loaded", 0, {}, {}
 
-            # Build state from incidents
-            state_dict = {
-                "incidents": incidents_list,
-                "priorities": {},
-                "allocation": {},
-            }
+def gradio_ui():
+    with gr.Blocks(title="Crisis Intelligence System") as demo:
 
-            for inc in incidents_list:
-                inc_id = inc.get("incident_id")
-                if inc_id:
-                    state_dict["priorities"][inc_id] = "medium"
-                    state_dict["allocation"][inc_id] = 100
+        incidents_storage = gr.Textbox(visible=False, value="[]")
 
-            results_text, reward, scores, explanations, _ = run_allocation(state_dict)
-            return (
-                results_text,
-                reward or 0,
-                scores or {},
-                explanations or {}
-            )
+        gr.Markdown("# 🚨 Crisis Intelligence System")
+
+        # -------- HEALTH --------
+        with gr.Row():
+            health_btn = gr.Button("Check Health")
+            health_status = gr.Textbox("Unknown", label="Status")
+            episode_display = gr.Textbox("None", label="Episode")
+
+        health_btn.click(check_health, outputs=[health_status, episode_display])
+
+        # -------- RESET --------
+        difficulty = gr.Dropdown(["easy", "medium", "hard"], value="easy")
+        reset_btn = gr.Button("Start")
+
+        reset_status = gr.Textbox("Ready")
+        episode_id = gr.Textbox()
+        resources = gr.Number()
+
+        incident_table = gr.Dataframe(
+            headers=["ID", "Severity", "People", "Desc"],
+            interactive=False,
+        )
+
+        reset_btn.click(
+            reset_task,
+            inputs=[difficulty],
+            outputs=[reset_status, episode_id, resources, incident_table, incidents_storage],
+        )
+
+        # -------- RUN --------
+        run_btn = gr.Button("Run Allocation")
+
+        result = gr.Markdown()
+        score = gr.Number()
+        scores_json = gr.JSON()
+        explanation = gr.JSON()
 
         run_btn.click(
-            on_run_allocation,
+            run_allocation,
             inputs=[incidents_storage],
-            outputs=[results_markdown, final_score_display, scores_json, explanations_json],
+            outputs=[result, score, scores_json, explanation],
         )
 
     return demo
 
 
-# Create and mount Gradio app properly
+# mount
 gradio_app = gradio_ui()
 app = gr.mount_gradio_app(app, gradio_app, path="/ui")
-
-
-# -------------------- MAIN --------------------
-def main():
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
-
-
-if __name__ == "__main__":
-    main()
