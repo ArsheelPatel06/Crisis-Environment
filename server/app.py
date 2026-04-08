@@ -131,7 +131,6 @@ async def get_state():
 
 # -------------------- GRADIO UI --------------------
 import os
-BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
 
 def ensure_state_initialized(state_dict):
     """Initialize state with default values if needed."""
@@ -152,21 +151,30 @@ def ensure_state_initialized(state_dict):
 def check_health():
     """Check system health status."""
     try:
-        res = requests.get(f"{BASE_URL}/health")
+        res = requests.get("/health")
+        if res.status_code != 200:
+            print(f"[HEALTH] Status {res.status_code}: {res.text}")
+            return f"❌ Error (code {res.status_code})", "N/A"
         data = res.json()
-        status = "✅ Healthy" if res.status_code == 200 else "❌ Unhealthy"
+        status = "✅ Healthy"
         return status, data.get("episode_id", "None")
     except Exception as e:
+        print(f"[HEALTH ERROR] {str(e)}")
         return f"❌ Error: {str(e)}", "N/A"
 
 def reset_task(difficulty):
     """Reset the environment with selected difficulty."""
     try:
-        res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}")
+        res = requests.post(f"/reset?difficulty={difficulty}")
+        if res.status_code != 200:
+            print(f"[RESET] Status {res.status_code}: {res.text}")
+            return f"❌ Error: HTTP {res.status_code}", None, None, None
+
         data = res.json()
 
         if not data.get("success", False):
-            return "Error resetting task", None, None, None
+            print(f"[RESET] Success=false: {data}")
+            return "❌ Reset failed", None, None, None
 
         observation = data.get("observation", {})
         input_data = observation.get("input", {})
@@ -194,6 +202,7 @@ def reset_task(difficulty):
 
         return f"✅ Reset to {difficulty} difficulty", episode_id, resource_total, table_data
     except Exception as e:
+        print(f"[RESET ERROR] {str(e)}")
         return f"❌ Error: {str(e)}", None, None, None
 
 def update_priority(state_dict, incident_id, priority):
@@ -232,11 +241,16 @@ def run_allocation(state_dict):
                     "people_affected": inc.get("people_affected"),
                 }
 
-        res = requests.post(f"{BASE_URL}/step", json=prediction)
+        res = requests.post("/step", json=prediction)
+        if res.status_code != 200:
+            print(f"[STEP] Status {res.status_code}: {res.text}")
+            return f"❌ Error: HTTP {res.status_code}", None, None, None, None
+
         data = res.json()
 
         if not data.get("success", False):
-            return "Error running allocation", None, None, None, None
+            print(f"[STEP] Success=false: {data}")
+            return "❌ Step failed", None, None, None, None
 
         info = data.get("info", {})
         scores = info.get("scores", {})
@@ -263,6 +277,7 @@ def run_allocation(state_dict):
 
         return results_text, reward, scores, explanations, data.get("observation")
     except Exception as e:
+        print(f"[STEP ERROR] {str(e)}")
         return f"❌ Error: {str(e)}", None, None, None, None
 
 def gradio_ui():
@@ -357,18 +372,22 @@ def gradio_ui():
 
             new_state = ensure_state_initialized({})
 
-            try:
-                res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}")
-                data = res.json()
-                if data.get("success"):
-                    observation = data.get("observation", {})
-                    input_data = observation.get("input", {})
-                    incidents = input_data.get("incidents", [])
-                    new_state["incidents"] = incidents
-                    new_state["episode_id"] = observation.get("episode_id")
-                    new_state["resource_units_total"] = input_data.get("resource_units_total", 0)
-            except:
-                pass
+            # Only populate state if reset was successful
+            if ep_id and table_data:
+                new_state["episode_id"] = ep_id
+                new_state["resource_units_total"] = res_total
+                # Extract incidents from table_data
+                incidents = []
+                # Re-call to get full incident objects (table_data is just display)
+                try:
+                    res = requests.post(f"/reset?difficulty={difficulty}")
+                    if res.status_code == 200:
+                        data = res.json()
+                        if data.get("success"):
+                            observation = data.get("observation", {})
+                            new_state["incidents"] = observation.get("input", {}).get("incidents", [])
+                except:
+                    pass
 
             return (
                 status,
@@ -376,7 +395,7 @@ def gradio_ui():
                 res_total,
                 table_data or [],
                 new_state,
-                gr.update(visible=len(table_data) > 0) if table_data else gr.update(visible=False)
+                gr.update(visible=len(table_data) > 0 if table_data else False)
             )
 
         reset_btn.click(
