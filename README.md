@@ -1,3 +1,14 @@
+---
+title: Crisis Intelligence System
+emoji: 🚑
+colorFrom: blue
+colorTo: red
+sdk: gradio
+sdk_version: "3.50.2"
+app_file: app.py
+pinned: false
+---
+
 # Crisis Intelligence Environment (CIE)
 
 A multi-step OpenEnv reinforcement learning environment where AI agents must operate on unreliable disaster data — cleaning corrupted inputs, assigning priorities, and allocating limited emergency resources under constrained conditions.
