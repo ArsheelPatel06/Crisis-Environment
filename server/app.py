@@ -132,6 +132,9 @@ async def get_state():
 # -------------------- GRADIO UI --------------------
 import os
 
+# Use localhost for server-side requests (both FastAPI and Gradio run in same container)
+BASE_URL = "http://127.0.0.1:7860"
+
 def ensure_state_initialized(state_dict):
     """Initialize state with default values if needed."""
     if state_dict is None:
@@ -151,7 +154,7 @@ def ensure_state_initialized(state_dict):
 def check_health():
     """Check system health status."""
     try:
-        res = requests.get("/health")
+        res = requests.get(f"{BASE_URL}/health", timeout=5)
         if res.status_code != 200:
             print(f"[HEALTH] Status {res.status_code}: {res.text}")
             return f"❌ Error (code {res.status_code})", "N/A"
@@ -165,7 +168,7 @@ def check_health():
 def reset_task(difficulty):
     """Reset the environment with selected difficulty."""
     try:
-        res = requests.post(f"/reset?difficulty={difficulty}")
+        res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}", timeout=10)
         if res.status_code != 200:
             print(f"[RESET] Status {res.status_code}: {res.text}")
             return f"❌ Error: HTTP {res.status_code}", None, None, None
@@ -241,7 +244,7 @@ def run_allocation(state_dict):
                     "people_affected": inc.get("people_affected"),
                 }
 
-        res = requests.post("/step", json=prediction)
+        res = requests.post(f"{BASE_URL}/step", json=prediction, timeout=10)
         if res.status_code != 200:
             print(f"[STEP] Status {res.status_code}: {res.text}")
             return f"❌ Error: HTTP {res.status_code}", None, None, None, None
@@ -380,14 +383,14 @@ def gradio_ui():
                 incidents = []
                 # Re-call to get full incident objects (table_data is just display)
                 try:
-                    res = requests.post(f"/reset?difficulty={difficulty}")
+                    res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}", timeout=10)
                     if res.status_code == 200:
                         data = res.json()
                         if data.get("success"):
                             observation = data.get("observation", {})
                             new_state["incidents"] = observation.get("input", {}).get("incidents", [])
-                except:
-                    pass
+                except Exception as e:
+                    print(f"[on_reset_with_state ERROR] {str(e)}")
 
             return (
                 status,
