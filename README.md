@@ -1,10 +1,11 @@
 ---
-title: Crisis Intelligence System
-emoji: 🚑
-colorFrom: blue
-colorTo: red
+title: Crisis Environment
+emoji: 🚨
+colorFrom: red
+colorTo: blue
 sdk: gradio
 sdk_version: "3.50.2"
+python_version: "3.10"
 app_file: app.py
 pinned: false
 ---
