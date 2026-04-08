@@ -334,19 +334,9 @@ def gradio_ui():
             )
 
         # ==================== SECTION 4 ====================
-        allocation_group = gr.Group(visible=False)
-        with allocation_group:
-            gr.Markdown("## 💼 Resource Allocation Panel")
-            gr.Markdown("Configure priorities and resource allocation for each incident")
-
-            allocation_container = gr.Column()
-
-            with allocation_container:
-                gr.Textbox(
-                    value="Load a scenario to see incidents",
-                    label="Status",
-                    interactive=False
-                )
+        with gr.Group():
+            gr.Markdown("## 💼 Resource Allocation")
+            gr.Markdown("Incidents will be prioritized using heuristics or LLM (if configured)")
 
         # ==================== SECTION 5 ====================
         with gr.Group():
@@ -398,38 +388,12 @@ def gradio_ui():
                 res_total,
                 table_data or [],
                 new_state,
-                gr.update(visible=len(table_data) > 0 if table_data else False)
             )
 
         reset_btn.click(
             on_reset_with_state,
             inputs=[difficulty_dropdown],
-            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state, allocation_group],
-        )
-
-        def build_allocation_ui(state_dict):
-            state_dict = ensure_state_initialized(state_dict)
-            incidents = state_dict.get("incidents", [])
-
-            if not incidents:
-                return None
-
-            ui_outputs = []
-            for inc in incidents:
-                inc_id = inc.get("incident_id", "Unknown")
-                severity = inc.get("severity", "N/A")
-                affected = inc.get("people_affected", 0)
-
-                ui_outputs.append(
-                    f"**{inc_id}** | Severity: {severity} | Affected: {affected}"
-                )
-
-            return "\n\n".join(ui_outputs)
-
-        state.change(
-            build_allocation_ui,
-            inputs=[state],
-            outputs=[],
+            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state],
         )
 
         def on_run_allocation_from_dropdown(state_dict):
