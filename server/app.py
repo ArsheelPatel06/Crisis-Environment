@@ -285,7 +285,9 @@ def run_allocation(state_dict):
 
 def gradio_ui():
     """Build the professional Gradio UI."""
-    state = gr.State(value={})
+    # State management - use separate state variables instead of complex nesting
+    state_episodes = gr.State(value={})
+    state_incidents = gr.State(value=[])
 
     with gr.Blocks(title="Crisis Intelligence System") as demo:
         # Title
@@ -360,59 +362,54 @@ def gradio_ui():
 
         # ==================== EVENTS ====================
 
-        def on_reset_with_state(difficulty):
+        def on_reset(difficulty):
+            """Handle reset button click."""
             status, ep_id, res_total, table_data = reset_task(difficulty)
 
-            new_state = ensure_state_initialized({})
-
-            # Only populate state if reset was successful
+            # Get full incidents for state storage
+            incidents = []
             if ep_id and table_data:
-                new_state["episode_id"] = ep_id
-                new_state["resource_units_total"] = res_total
-                # Extract incidents from table_data
-                incidents = []
-                # Re-call to get full incident objects (table_data is just display)
                 try:
                     res = requests.post(f"{BASE_URL}/reset?difficulty={difficulty}", timeout=10)
                     if res.status_code == 200:
                         data = res.json()
                         if data.get("success"):
                             observation = data.get("observation", {})
-                            new_state["incidents"] = observation.get("input", {}).get("incidents", [])
+                            incidents = observation.get("input", {}).get("incidents", [])
                 except Exception as e:
-                    print(f"[on_reset_with_state ERROR] {str(e)}")
+                    print(f"[on_reset ERROR] {str(e)}")
 
             return (
                 status,
-                ep_id,
-                res_total,
+                ep_id or "",
+                res_total or 0,
                 table_data or [],
-                new_state,
+                incidents,
             )
 
         reset_btn.click(
-            on_reset_with_state,
+            on_reset,
             inputs=[difficulty_dropdown],
-            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state],
+            outputs=[reset_status, episode_id_display, resource_total_display, incident_table, state_incidents],
         )
 
-        def on_run_allocation_from_dropdown(state_dict):
-            state_dict = ensure_state_initialized(state_dict)
-            incidents = state_dict.get("incidents", [])
-
-            if not incidents:
+        def on_run_allocation(incidents_list):
+            """Handle run allocation button click."""
+            if not incidents_list:
                 return "❌ No incidents loaded", 0, {}, {}
 
-            priorities = {}
-            allocation_vals = {}
+            # Build state from incidents
+            state_dict = {
+                "incidents": incidents_list,
+                "priorities": {},
+                "allocation": {},
+            }
 
-            for inc in incidents:
+            for inc in incidents_list:
                 inc_id = inc.get("incident_id")
-                priorities[inc_id] = "medium"
-                allocation_vals[inc_id] = 100
-
-            state_dict["priorities"] = priorities
-            state_dict["allocation"] = allocation_vals
+                if inc_id:
+                    state_dict["priorities"][inc_id] = "medium"
+                    state_dict["allocation"][inc_id] = 100
 
             results_text, reward, scores, explanations, _ = run_allocation(state_dict)
             return (
@@ -423,8 +420,8 @@ def gradio_ui():
             )
 
         run_btn.click(
-            on_run_allocation_from_dropdown,
-            inputs=[state],
+            on_run_allocation,
+            inputs=[state_incidents],
             outputs=[results_markdown, final_score_display, scores_json, explanations_json],
         )
 
